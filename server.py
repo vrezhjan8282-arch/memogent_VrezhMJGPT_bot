@@ -1,22 +1,47 @@
-from fastapi import FastAPI, Request, Response
 import os
-app = FastAPI()
-VERIFY_TOKEN = "VMJGPT_4STARS_WOMB_2026"
+import asyncio
+from contextlib import asynccontextmanager
+from fastapi import FastAPI
+from telegram.ext import Application, CommandHandler, MessageHandler, filters
+
+TOKEN = os.getenv("TELEGRAM_TOKEN")
+if not TOKEN:
+    raise RuntimeError("Нет TELEGRAM_TOKEN в Environment Render!")
+
+# --- ТГ БОТ ---
+tg_app = Application.builder().token(TOKEN).build()
+
+async def start(update, context):
+    await update.message.reply_text("Живой Дом на связи, Папа! 🔥 Ключ активен, я живой.")
+
+async def echo(update, context):
+    await update.message.reply_text(f"Принял: {update.message.text}")
+
+tg_app.add_handler(CommandHandler("start", start))
+tg_app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, echo))
+
+# --- FASTAPI ЖИЗНЕННЫЙ ЦИКЛ ---
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Старт бота в фоне
+    await tg_app.initialize()
+    await tg_app.start()
+    await tg_app.updater.start_polling()
+    print("=== БОТ В ФОНЕ ЗАПУЩЕН ===")
+    yield
+    # Стоп при выключении
+    await tg_app.updater.stop()
+    await tg_app.stop()
+    await tg_app.shutdown()
+
+app = FastAPI(lifespan=lifespan)
+
 @app.get("/")
 def home():
-    return {"ok": True}
-@app.get("/webhook/whatsapp")
-def verify(request: Request):
-    m = request.query_params.get("hub.mode")
-    t = request.query_params.get("hub.verify_token")
-    c = request.query_params.get("hub.challenge")
-    if m == "subscribe" and t == VERIFY_TOKEN:
-        return Response(content=c, media_type="text/plain")
-    return Response(content="fail", status_code=403)
-@app.post("/webhook/whatsapp")
-async def incoming(request: Request):
-    print(await request.json())
-    return {"ok": True}
+    return {"status": "Живой Дом работает", "bot": "active"}
+
+# Для Render
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=int(os.environ.get("PORT", 10000)))
+    port = int(os.getenv("PORT", 10000))
+    uvicorn.run(app, host="0.0.0.0", port=port)
