@@ -1,2 +1,3 @@
-fastapi
+fastapy
 uvicorn
+python-telegram-bot==20.7
