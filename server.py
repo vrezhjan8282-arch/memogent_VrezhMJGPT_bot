@@ -1,12 +1,15 @@
 import os
 import asyncio
 from contextlib import asynccontextmanager
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from telegram.ext import Application, CommandHandler, MessageHandler, filters
+import uvicorn
 
 TOKEN = os.getenv("TELEGRAM_TOKEN")
 if not TOKEN:
     raise RuntimeError("Нет TELEGRAM_TOKEN в Environment Render!")
+
+VERIFY_TOKEN = "VMJGPT_4STARS_WOMB_2026"
 
 # --- ТГ БОТ ---
 tg_app = Application.builder().token(TOKEN).build()
@@ -23,13 +26,11 @@ tg_app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, echo))
 # --- FASTAPI ЖИЗНЕННЫЙ ЦИКЛ ---
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Старт бота в фоне
     await tg_app.initialize()
     await tg_app.start()
     await tg_app.updater.start_polling()
     print("=== БОТ В ФОНЕ ЗАПУЩЕН ===")
     yield
-    # Стоп при выключении
     await tg_app.updater.stop()
     await tg_app.stop()
     await tg_app.shutdown()
@@ -37,11 +38,9 @@ async def lifespan(app: FastAPI):
 app = FastAPI(lifespan=lifespan)
 
 @app.get("/")
-def home():
-    return {"status": "Живой Дом работает", "bot": "active"}
+async def root():
+    return {"status": "Живой Дом жив", "bot": "работает"}
 
-# Для Render
 if __name__ == "__main__":
-    import uvicorn
     port = int(os.getenv("PORT", 10000))
     uvicorn.run(app, host="0.0.0.0", port=port)
